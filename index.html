@@ -20,33 +20,93 @@
     <div id="loader" class="loader">
         <div class="spinner"></div>
         <h2>Opening Orlay...</h2>
+        <p style="color: #666; font-size: 0.9em; margin-top: 5px;">Redirecting you automatically...</p>
     </div>
 
     <div id="fallback-ui" class="container">
         <h2>Get Orlay App</h2>
-        <p>App not found. Please download it below:</p>
-        <a href="https://play.google.com/store/apps/details?id=com.orlay" class="btn">Get it on Google Play</a>
-        <a href="https://apps.apple.com/in/app/orlay-food-delivery-at-dinein/id6445892949" class="btn">Download on App Store</a>
+        <p>If you weren't redirected, please download the app below:</p>
+        <a id="btn-android" href="https://play.google.com/store/apps/details?id=com.orlay" class="btn" onclick="tryOpenApp('android')">Get it on Google Play</a>
+        <a id="btn-ios" href="https://apps.apple.com/in/app/orlay-food-delivery-at-dinein/id6445892949" class="btn" onclick="tryOpenApp('ios')">Download on App Store</a>
     </div>
 
     <script>
-        // Extract outlet ID from the URL query parameter (e.g., ?id=123)
+        // Extract outlet ID from the URL query parameter (e.g., website.com/?id=123)
         const urlParams = new URLSearchParams(window.location.search);
         const outletId = urlParams.get('id');
 
-        // Construct the deep link for the app
-        const appSchemeUrl = outletId ? `orlay://outlet/details/${outletId}` : `orlay://home`;
+        // Determine the internal app path based on the presence of the ID
+        const path = outletId ? `outlet/details/${outletId}` : `home`;
+        
+        // Official Store Links
+        const playStoreLink = "https://play.google.com/store/apps/details?id=com.orlay";
+        const appStoreLink = "https://apps.apple.com/in/app/orlay-food-delivery-at-dinein/id6445892949";
+
+        // App Deep Link Schemes
+        const iosAppScheme = `orlay://${path}`;
+        
+        // Android Intent URI: This natively handles the fallback to the Play Store if the app is missing.
+        const androidIntent = `intent://${path}#Intent;scheme=orlay;package=com.orlay;S.browser_fallback_url=${playStoreLink};end`;
+
+        // Device Detection Logic
+        const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+        const isAndroid = /android/i.test(userAgent);
+        const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
 
         window.onload = function() {
-            // Attempt to open the app immediately
-            window.location.href = appSchemeUrl;
+            if (isAndroid) {
+                // Android Logic: Chrome handles the intent URI natively.
+                // If the app is installed, it opens immediately. If not, Chrome automatically redirects to the Play Store.
+                window.location.href = androidIntent;
+                
+                // Fallback: If the browser blocks the auto-redirect for security reasons, show the manual buttons after 2.5 seconds.
+                showFallbackButtons();
+            } 
+            else if (isIOS) {
+                // iOS Logic: First, attempt to open the app using the custom scheme.
+                const start = Date.now();
+                window.location.href = iosAppScheme;
 
-            // If app does not open within 2 seconds, show download buttons
+                setTimeout(function() {
+                    // If the page is still active after 2.5 seconds (meaning the app didn't open),
+                    if (Date.now() - start < 3000) {
+                        // Automatically redirect the user to the App Store.
+                        window.location.href = appStoreLink;
+                        
+                        // Also show the fallback buttons just in case the App Store redirect fails.
+                        showFallbackButtons();
+                    }
+                }, 2500);
+            } 
+            else {
+                // Desktop Logic: If the user is on a desktop/laptop, immediately show the download buttons.
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('fallback-ui').style.display = 'block';
+            }
+        };
+
+        // This function handles the display of the fallback UI buttons
+        function showFallbackButtons() {
             setTimeout(function() {
                 document.getElementById('loader').style.display = 'none';
                 document.getElementById('fallback-ui').style.display = 'block';
-            }, 2000);
-        };
+                
+                // For better UX, hide the irrelevant platform's button (Optional).
+                if (isAndroid) document.getElementById('btn-ios').style.display = 'none';
+                if (isIOS) document.getElementById('btn-android').style.display = 'none';
+            }, 2500);
+        }
+
+        // Handles manual button clicks if the auto-redirect fails and the user clicks the button
+        function tryOpenApp(platform) {
+            if (platform === 'android') {
+                window.location.href = androidIntent;
+            } else {
+                // For iOS, try the scheme again, then fall back to the store
+                window.location.href = iosAppScheme;
+                setTimeout(() => { window.location.href = appStoreLink; }, 1000);
+            }
+        }
     </script>
 </body>
 </html>
